@@ -108,6 +108,30 @@ func smokeRestartRecovery(dbPath string, clk *clock.Fake) error {
 	if postHyd.RemotePressureMbar != preHyd.RemotePressureMbar {
 		return fmt.Errorf("remote pressure changed: pre=%d post=%d", preHyd.RemotePressureMbar, postHyd.RemotePressureMbar)
 	}
+	// The full per-node table (every branch node + the most-unfavourable
+	// sprinkler) must survive the page query AND the restart. Before the fix
+	// both paths truncated to the single source node, losing the remote head.
+	if len(preHyd.Nodes) < 2 {
+		return fmt.Errorf("pre-crash node table truncated to %d nodes (<2 means branch nodes lost)", len(preHyd.Nodes))
+	}
+	if len(postHyd.Nodes) != len(preHyd.Nodes) {
+		return fmt.Errorf("node table size changed across restart: pre=%d post=%d (branch nodes lost on recovery)",
+			len(preHyd.Nodes), len(postHyd.Nodes))
+	}
+	if postHyd.RemoteFlowLPM <= 0 {
+		return fmt.Errorf("post-recovery remote flow lost: %d", postHyd.RemoteFlowLPM)
+	}
+	// The most-unfavourable sprinkler must remain traceable in the recovered table.
+	remoteID := preSys.RemoteNodeID
+	var foundRemote bool
+	for _, nr := range postHyd.Nodes {
+		if nr.NodeID == remoteID && nr.FlowLPM > 0 {
+			foundRemote = true
+		}
+	}
+	if !foundRemote {
+		return fmt.Errorf("most-unfavourable sprinkler %s not traceable after restart (node table: %+v)", remoteID, postHyd.Nodes)
+	}
 	// Post-recovery system state must equal pre-crash (event-stream authoritative).
 	postSys, err := getSystem(srv2, sid)
 	if err != nil {

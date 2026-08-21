@@ -76,6 +76,66 @@ func TestSystemLifecycleEvents(t *testing.T) {
 	}
 }
 
+func TestHydraulicResultPreservesFullNodeTable(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	st.CreateProject(ctx, nil, &model.Project{ID: "prj_h", Name: "p", HazardClass: model.HazardLight, DesignDate: 0, CreatedAt: 1})
+	st.CreateSystem(ctx, nil, &model.System{
+		ID: "sys_h", ProjectID: "prj_h", Kind: model.KindSprinkler, Name: "s",
+		BaseElevationMM: 0, DesignAreaDM2: 13900, DesignDensity: 21, PerHeadCoverageDM2: 200,
+		State: model.StateDraft, UpdatedAt: 1,
+	})
+	// A representative tree-shaped result: source, a junction, two sprinklers
+	// (one of them the most-unfavourable remote head), and a drain. Every node
+	// must survive the round-trip so the remote sprinkler stays traceable.
+	full := &model.HydraulicResult{
+		ID:                   "hyd_1",
+		SystemID:             "sys_h",
+		BaseFlowLPM:          200,
+		BaseRequiredPressure: 5000,
+		RemotePressureMbar:   500,
+		RemoteFlowLPM:        80,
+		CalcEpoch:            9,
+		Nodes: []model.NodeResult{
+			{NodeID: "src", Label: "水源", PressureMbar: 5000, ElevationMM: 0},
+			{NodeID: "jct", Label: "三通", PressureMbar: 4000, ElevationMM: 500},
+			{NodeID: "sp_a", Label: "喷头A(最不利)", PressureMbar: 500, FlowLPM: 80, ElevationMM: 3000},
+			{NodeID: "sp_b", Label: "喷头B", PressureMbar: 620, FlowLPM: 89, ElevationMM: 3000},
+			{NodeID: "drn", Label: "试验接口", PressureMbar: 0, ElevationMM: 0},
+		},
+	}
+	if err := st.UpsertHydraulicResult(ctx, nil, full); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	got, err := st.GetHydraulicResult(ctx, "sys_h")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if len(got.Nodes) != len(full.Nodes) {
+		t.Fatalf("node table truncated: got %d nodes, want %d (only the source was kept before the fix)",
+			len(got.Nodes), len(full.Nodes))
+	}
+	// The most-unfavourable remote sprinkler must be recoverable by id.
+	remoteByID := map[string]model.NodeResult{}
+	for _, nr := range got.Nodes {
+		remoteByID[nr.NodeID] = nr
+	}
+	remote, ok := remoteByID["sp_a"]
+	if !ok {
+		t.Fatalf("remote sprinkler sp_a missing from persisted node table: %+v", got.Nodes)
+	}
+	if remote.FlowLPM != 80 {
+		t.Errorf("remote flow=%d want 80", remote.FlowLPM)
+	}
+	// Junction + the second branch sprinkler must survive too.
+	if _, ok := remoteByID["jct"]; !ok {
+		t.Errorf("junction node jct missing from persisted table")
+	}
+	if _, ok := remoteByID["sp_b"]; !ok {
+		t.Errorf("branch sprinkler sp_b missing from persisted table")
+	}
+}
+
 func TestImpairmentCompensation(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()

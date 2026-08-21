@@ -91,9 +91,8 @@ func (r *Reconciler) reconcileSystem(ctx context.Context, sys *model.System) err
 	res.ID = idlibSafe()
 	res.SystemID = sys.ID
 	res.CalcEpoch = r.svc.now()
-	if len(res.Nodes) > 1 {
-		res.Nodes = res.Nodes[:1]
-	}
+	// Keep the full per-node result table so restart recovery preserves every
+	// branch node and the most-unfavourable sprinkler stays traceable.
 
 	sup, _ := r.svc.st.GetWaterSupply(ctx, sys.ID)
 	var pump *model.FirePump

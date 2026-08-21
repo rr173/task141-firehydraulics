@@ -19,7 +19,9 @@ func (s *Store) UpsertHydraulicResult(ctx context.Context, tx *sql.Tx, r *model.
 	if tx != nil {
 		q = tx
 	}
-	payload, err := json.Marshal(r.Nodes[:1])
+	// Persist the entire per-node result table so every branch node (including
+	// the most-unfavourable sprinkler) survives a page query and a restart.
+	payload, err := json.Marshal(r.Nodes)
 	if err != nil {
 		return fmt.Errorf("marshal hydraulic nodes: %w", err)
 	}

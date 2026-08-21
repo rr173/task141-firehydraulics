@@ -92,9 +92,9 @@ func (s *Services) Calculate(ctx context.Context, systemID string) (*model.Hydra
 	res.ID = idlib.New("hyd")
 	res.SystemID = systemID
 	res.CalcEpoch = s.now()
-	if len(res.Nodes) > 1 {
-		res.Nodes = res.Nodes[:1]
-	}
+	// Keep the full per-node result table so the most-unfavourable sprinkler
+	// and every branch node stay traceable on page query. Truncating here
+	// drops branch nodes and makes the remote sprinkler unrecoverable.
 
 	// Build the supply comparison at the base flow.
 	sup, err := s.st.GetWaterSupply(ctx, systemID)
