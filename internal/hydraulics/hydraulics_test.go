@@ -91,6 +91,29 @@ func TestBuildNetworkDisconnected(t *testing.T) {
 	}
 }
 
+func TestBuildNetworkConfluenceRejected(t *testing.T) {
+	// A confluence: the same downstream node fed by two upstream branches. The
+	// tree method attributes one feeding pipe (and one subtree flow) to each
+	// node; a merged node would have ambiguous flow attribution, so the network
+	// must not be accepted as a valid design.
+	nodes := []model.Node{
+		{ID: "s", Type: model.NodeSource},
+		{ID: "j1", Type: model.NodeJunction},
+		{ID: "j2", Type: model.NodeJunction},
+		{ID: "x", Type: model.NodeSprinkler, KFactor: 80}, // fed by both j1 and j2
+	}
+	pipes := []model.PipeSegment{
+		{ID: "p1", UpstreamNodeID: "s", DownstreamNodeID: "j1"},
+		{ID: "p2", UpstreamNodeID: "s", DownstreamNodeID: "j2"},
+		{ID: "p3", UpstreamNodeID: "j1", DownstreamNodeID: "x"}, // first feeder
+		{ID: "p4", UpstreamNodeID: "j2", DownstreamNodeID: "x"}, // second feeder → confluence
+	}
+	_, err := BuildNetwork("s", nodes, pipes)
+	if err == nil {
+		t.Fatalf("expected confluence error, got nil")
+	}
+}
+
 func TestCalcSimpleTree(t *testing.T) {
 	// source → junction → sprinkler(remote). Two sprinklers off the junction.
 	nodes := []model.Node{

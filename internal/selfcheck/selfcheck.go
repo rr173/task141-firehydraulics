@@ -44,6 +44,7 @@ func Run() error {
 		fn   func(srv *httptest.Server, clk *clock.Fake) error
 	}{
 		{"hydraulic-calc-and-compliance", smokeHydraulicCalcAndCompliance},
+		{"confluence-rejected", smokeConfluenceRejected},
 		{"velocity-and-supply-deficit", smokeVelocityAndSupplyDeficit},
 		{"pump-augments-supply", smokePumpAugmentsSupply},
 		{"lifecycle-to-in-service", smokeLifecycleToInService},

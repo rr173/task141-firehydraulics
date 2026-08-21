@@ -23,9 +23,9 @@ import (
 // units used by the physics. Pressure is stored in mbar (1 bar = 1000 mbar);
 // flow in L/min; length in mm.
 const (
-	barPerMbar = 1.0 / 1000.0      // 1 mbar = 0.001 bar
-	m3PerL     = 1.0 / 1000.0     // 1 L = 0.001 m³
-	mPerMM     = 1.0 / 1000.0     // 1 mm = 0.001 m
+	barPerMbar = 1.0 / 1000.0 // 1 mbar = 0.001 bar
+	m3PerL     = 1.0 / 1000.0 // 1 L = 0.001 m³
+	mPerMM     = 1.0 / 1000.0 // 1 mm = 0.001 m
 	// 1 metre of water column ≈ 9806.65 Pa = 98.0665 mbar. Used to convert a
 	// Hazen-Williams head loss (in metres of water) to a pressure loss in mbar.
 	mbarPerMetreWater = 9806.65 / 1000.0 * 1000.0 / 1000.0 // = 9.80665? keep explicit
@@ -83,7 +83,7 @@ func Velocity(dMM, flowLPM int64) int64 {
 	dm := float64(dMM) * mPerMM
 	area := math.Pi / 4.0 * dm * dm
 	qM3s := float64(flowLPM) * m3PerL / 60.0
-	v := qM3s / area // m/s
+	v := qM3s / area              // m/s
 	return roundHalfUp(v * 100.0) // 0.01 m/s units
 }
 
@@ -179,12 +179,15 @@ func (n *Network) assertTree() error {
 			inDegree[e.to]++
 		}
 	}
-	// Every non-source node must have in-degree 0 or 1; in-degree > 1 is a cycle.
+	// Every non-source node must have in-degree 0 or 1; in-degree > 1 means the
+	// node has two upstream parents (a confluence/merge), which is not a tree.
+	// The tree method assigns each node exactly one feeding pipe and one subtree
+	// flow, so a merged node corrupts flow attribution. Reject it here.
 	for id := range n.Nodes {
 		if id == n.SourceID {
 			continue
 		}
-		if inDegree[id] > 2 {
+		if inDegree[id] > 1 {
 			return fmt.Errorf("hydraulics: node %s has %d upstream pipes (cycle or merge), tree required", id, inDegree[id])
 		}
 	}
@@ -273,7 +276,7 @@ func Calc(net *Network, remoteNodeID string, remotePressureMbar int64) (*model.H
 	// Phase 1: compute subtree flow at every node (sum of downstream sprinkler
 	// flows) using a downstream→upstream pass. Start each sprinkler at the
 	// remote starting pressure as a first estimate; refine in phase 2.
-	flows := make(map[string]int64) // nodeID → flow at that node (subtree total)
+	flows := make(map[string]int64)     // nodeID → flow at that node (subtree total)
 	pressures := make(map[string]int64) // nodeID → pressure (mbar) at the node
 	// Seed the remote node pressure.
 	pressures[remoteNodeID] = remotePressureMbar

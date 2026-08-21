@@ -123,7 +123,7 @@ func smokeHydraulicCalcAndCompliance(srv *httptest.Server, clk *clock.Fake) erro
 	}
 	// Calculate.
 	var calc struct {
-		Hydraulic *model.HydraulicResult `json:"hydraulic"`
+		Hydraulic *model.HydraulicResult  `json:"hydraulic"`
 		Supply    *model.SupplyComparison `json:"supply_comparison"`
 	}
 	if err := mustDo(srv, "POST", "/api/systems/"+sid+"/calculate", nil, &calc); err != nil {
@@ -206,11 +206,94 @@ func smokeVelocityAndSupplyDeficit(srv *httptest.Server, clk *clock.Fake) error 
 // callCalc runs the calculation and returns the result.
 func callCalc(srv *httptest.Server, sid string) (*model.HydraulicResult, *model.SupplyComparison, error) {
 	var calc struct {
-		Hydraulic *model.HydraulicResult `json:"hydraulic"`
+		Hydraulic *model.HydraulicResult  `json:"hydraulic"`
 		Supply    *model.SupplyComparison `json:"supply_comparison"`
 	}
 	if err := mustDo(srv, "POST", "/api/systems/"+sid+"/calculate", nil, &calc); err != nil {
 		return nil, nil, err
 	}
 	return calc.Hydraulic, calc.Supply, nil
+}
+
+// smokeConfluenceRejected proves a confluence network — one sprinkler fed by
+// two upstream branches — is rejected at entry (CreatePipe returns 409) AND, if
+// such a network ever reached compliance (e.g. via direct store seeding), the
+// tree-integrity rule fails it. This guards flow-attribution integrity across
+// both the entry and the 校核 paths.
+func smokeConfluenceRejected(srv *httptest.Server, clk *clock.Fake) error {
+	_, sid, _, _, err := buildSimpleTree(srv, model.HazardOrdinary1, densityFor(model.HazardOrdinary1), areaFor(model.HazardOrdinary1), perHeadFor(model.HazardOrdinary1))
+	if err != nil {
+		return err
+	}
+	// Add a second junction and a third pipe that tries to feed an EXISTING
+	// downstream sprinkler from a second upstream branch. The first feeder to
+	// sp1 is junction→sp1; adding source→sp1 would give sp1 a second parent.
+	var jct2 model.Node
+	if err := mustDo(srv, "POST", "/api/systems/"+sid+"/nodes",
+		map[string]any{"type": "junction", "label": "三通2", "elevation_mm": 500, "seq": 5}, &jct2); err != nil {
+		return err
+	}
+	// Collect an existing sprinkler id to target as the confluence point.
+	nodes, err := listNodes(srv, sid)
+	if err != nil {
+		return err
+	}
+	var sp1ID string
+	for _, n := range nodes {
+		if n.Type == model.NodeSprinkler {
+			sp1ID = n.ID
+			break
+		}
+	}
+	if sp1ID == "" {
+		return fmt.Errorf("no sprinkler node found to target as confluence")
+	}
+	// Connect the second junction to the source first (so it is a valid branch root).
+	var srcID string
+	for _, n := range nodes {
+		if n.Type == model.NodeSource {
+			srcID = n.ID
+			break
+		}
+	}
+	if err := mustDo(srv, "POST", "/api/systems/"+sid+"/pipes",
+		map[string]any{"upstream_node_id": srcID, "downstream_node_id": jct2.ID,
+			"nominal_dia_mm": 80, "inner_dia_mm": 78, "length_mm": 1000, "c_factor": 150, "fitting_equiv_mm": 0, "seq": 3}, nil); err != nil {
+		return err
+	}
+	// Now attempt the confluence: jct2 → sp1, but sp1 already has junction as its
+	// upstream. This must be rejected with 409 Conflict at entry time.
+	if err := expectCode(srv, "POST", "/api/systems/"+sid+"/pipes",
+		map[string]any{"upstream_node_id": jct2.ID, "downstream_node_id": sp1ID,
+			"nominal_dia_mm": 40, "inner_dia_mm": 40, "length_mm": 2000, "c_factor": 150, "fitting_equiv_mm": 0, "seq": 4}, 409); err != nil {
+		return fmt.Errorf("confluence pipe should be rejected at entry: %w", err)
+	}
+	// Because the confluence was rejected, the network remains a valid tree and
+	// the compliance tree-integrity rule still passes.
+	if err := mustDo(srv, "POST", "/api/systems/"+sid+"/compliance", nil, nil); err != nil {
+		return err
+	}
+	var comp struct {
+		Checks []model.ComplianceCheck `json:"checks"`
+	}
+	if err := mustDo(srv, "GET", "/api/systems/"+sid+"/compliance", nil, &comp); err != nil {
+		return err
+	}
+	for _, c := range comp.Checks {
+		if c.RuleCode == "R-tree-integrity" && !c.Passed {
+			return fmt.Errorf("R-tree-integrity should pass after rejecting the confluence, got fail: %s", c.Detail)
+		}
+	}
+	return nil
+}
+
+// listNodes fetches the nodes of a system.
+func listNodes(srv *httptest.Server, sid string) ([]model.Node, error) {
+	var resp struct {
+		Nodes []model.Node `json:"nodes"`
+	}
+	if err := mustDo(srv, "GET", "/api/systems/"+sid+"/nodes", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Nodes, nil
 }

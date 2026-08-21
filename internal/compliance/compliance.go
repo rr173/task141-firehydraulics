@@ -15,37 +15,37 @@ import (
 
 // Rule codes (locked). The selfcheck asserts on these codes.
 const (
-	RRemotePressure = "R-remote-pressure"  // most unfavourable sprinkler ≥ min pressure
-	RDensity        = "R-density"           // average density ≥ design density over design area
-	RVelocity       = "R-velocity"          // pipe velocity ≤ 6.1 m/s (wet)
-	RMaxPressure    = "R-max-pressure"      // system max pressure ≤ 12 bar
-	RSpareHeads     = "R-spare-heads"       // spare sprinkler heads ≥ 6 per type
-	RDrainTest      = "R-drain-test"        // system has drain/test connection
-	RSupplyAdequacy = "R-supply-adequacy"   // supply available ≥ required at base
-	RTreeIntegrity  = "R-tree-integrity"    // network is a tree rooted at source
-	RPumpOverspeed  = "R-pump-overspeed"   // pump churn ≤ component rating & rated ≥ needs
-	RSingleDesign   = "R-single-design"    // one active hydraulic result per system
+	RRemotePressure = "R-remote-pressure" // most unfavourable sprinkler ≥ min pressure
+	RDensity        = "R-density"         // average density ≥ design density over design area
+	RVelocity       = "R-velocity"        // pipe velocity ≤ 6.1 m/s (wet)
+	RMaxPressure    = "R-max-pressure"    // system max pressure ≤ 12 bar
+	RSpareHeads     = "R-spare-heads"     // spare sprinkler heads ≥ 6 per type
+	RDrainTest      = "R-drain-test"      // system has drain/test connection
+	RSupplyAdequacy = "R-supply-adequacy" // supply available ≥ required at base
+	RTreeIntegrity  = "R-tree-integrity"  // network is a tree rooted at source
+	RPumpOverspeed  = "R-pump-overspeed"  // pump churn ≤ component rating & rated ≥ needs
+	RSingleDesign   = "R-single-design"   // one active hydraulic result per system
 )
 
 // limit constants.
 const (
-	maxPressureMbar    int64 = 12000 // 12 bar component rating
-	velocityLimitMS    int64 = 610   // 6.1 m/s in 0.01 m/s units
-	minSpareHeads      int64 = 6
-	remoteMinPressure  int64 = 500   // 0.5 bar at most unfavourable sprinkler
+	maxPressureMbar   int64 = 12000 // 12 bar component rating
+	velocityLimitMS   int64 = 610   // 6.1 m/s in 0.01 m/s units
+	minSpareHeads     int64 = 6
+	remoteMinPressure int64 = 500 // 0.5 bar at most unfavourable sprinkler
 )
 
 // Input bundles everything a rule needs. Keeping it explicit avoids each rule
 // reaching into the store.
 type Input struct {
-	System     *model.System
-	Nodes      []model.Node
-	Pipes      []model.PipeSegment
+	System      *model.System
+	Nodes       []model.Node
+	Pipes       []model.PipeSegment
 	WaterSupply *model.WaterSupply
-	Pump       *model.FirePump
-	Hydraulic  *model.HydraulicResult
-	Supply     *model.SupplyComparison
-	Network    *hydraulics.Network // pre-built tree; nil if not buildable
+	Pump        *model.FirePump
+	Hydraulic   *model.HydraulicResult
+	Supply      *model.SupplyComparison
+	Network     *hydraulics.Network // pre-built tree; nil if not buildable
 }
 
 // Check runs every rule and returns the results in a stable order.
@@ -119,6 +119,11 @@ func checkVelocity(in Input) model.ComplianceCheck {
 		c.Detail = "no network/pipes"
 		return c
 	}
+	if in.Hydraulic == nil {
+		c.Passed = false
+		c.Detail = "no hydraulic result"
+		return c
+	}
 	// Recompute flows from the hydraulic result's node table to evaluate each
 	// pipe's carried flow. The pipe feeding node N carries N's subtree total.
 	// We approximate the velocity using the base flow split proportionally;
@@ -140,8 +145,12 @@ func checkVelocity(in Input) model.ComplianceCheck {
 
 // subtreeEmitterFlows returns, per node id, the total emitter flow in the
 // subtree rooted at that node (used as the carried flow for the pipe ending at
-// that node). It mirrors the calculation's flow accumulation.
+// that node). It mirrors the calculation's flow accumulation. Both net and res
+// must be non-nil (callers guard this); a nil res yields an empty map.
 func subtreeEmitterFlows(net *hydraulics.Network, res *model.HydraulicResult) map[string]int64 {
+	if net == nil || res == nil {
+		return map[string]int64{}
+	}
 	out := make(map[string]int64, len(res.Nodes))
 	emitter := make(map[string]int64, len(res.Nodes))
 	for _, nr := range res.Nodes {
@@ -271,9 +280,15 @@ func checkSupplyAdequacy(in Input) model.ComplianceCheck {
 
 func checkTreeIntegrity(in Input) model.ComplianceCheck {
 	c := model.ComplianceCheck{RuleCode: RTreeIntegrity}
-	if false && in.Network == nil {
+	// The authoritative tree check is hydraulics.BuildNetwork: it rejects any
+	// network that is not a single-rooted tree, including confluences (one node
+	// fed by two upstream branches). The service sets Network nil when the build
+	// fails, so a nil network here means the stored pipes form an invalid
+	// (cyclic or merged) design. Such a network must not be accepted as a valid
+	// design: the rule fails so downstream 校核 cannot treat it as compliant.
+	if in.Network == nil {
 		c.Passed = false
-		c.Detail = "network not buildable (cycle/disconnected)"
+		c.Detail = "network not buildable: not a single-rooted tree (cycle/disconnect/confluence)"
 		return c
 	}
 	c.Passed = true

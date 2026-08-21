@@ -60,6 +60,8 @@ func (s *Services) CreatePipe(ctx context.Context, systemID, upstreamID, downstr
 	}
 	// Load existing pipes to check the downstream node doesn't already have a
 	// parent (tree invariant: every non-source node has exactly one upstream).
+	// A confluence — one node fed by two upstream branches — is rejected at
+	// entry time so a merged network can never be stored as a valid design.
 	pipes, err := s.st.ListPipesBySystem(ctx, systemID)
 	if err != nil {
 		return nil, err
@@ -67,6 +69,18 @@ func (s *Services) CreatePipe(ctx context.Context, systemID, upstreamID, downstr
 	for _, p := range pipes {
 		if p.UpstreamNodeID == upstreamID && p.DownstreamNodeID == downstreamID {
 			return nil, fmt.Errorf("%w: duplicate pipe %s→%s", store.ErrConflict, upstreamID, downstreamID)
+		}
+		// The tree invariant: a node may have at most one upstream parent. Adding
+		// this edge would give the downstream node a second feeder branch, i.e. a
+		// confluence/merge, which the tree method cannot attribute flow to.
+		if p.DownstreamNodeID == downstreamID {
+			return nil, fmt.Errorf("%w: node %s already has an upstream pipe %s→%s; a node may have only one upstream branch (no confluence)", store.ErrConflict, downstreamID, p.UpstreamNodeID, p.DownstreamNodeID)
+		}
+		// A node feeding itself, or an edge that would reverse an existing
+		// parent→child relationship (downstream becomes its own ancestor),
+		// would create a cycle. Reject so the network stays acyclic.
+		if p.DownstreamNodeID == upstreamID && p.UpstreamNodeID == downstreamID {
+			return nil, fmt.Errorf("%w: pipe %s→%s reverses existing pipe %s→%s (cycle)", store.ErrConflict, upstreamID, downstreamID, downstreamID, upstreamID)
 		}
 	}
 	if innerDia <= 0 {
@@ -80,7 +94,7 @@ func (s *Services) CreatePipe(ctx context.Context, systemID, upstreamID, downstr
 		NominalDiaMM:     nominalDia,
 		InnerDiaMM:       innerDia,
 		LengthMM:         length,
-		CFactor:           cFactor,
+		CFactor:          cFactor,
 		FittingEquivMM:   fittingEquiv,
 		Seq:              seq,
 	}

@@ -100,3 +100,16 @@ func TestCheckFailsBrokenTree(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckFailsConfluenceTree(t *testing.T) {
+	// A confluence (one node fed by two upstream branches) must not be accepted
+	// as a valid design: BuildNetwork rejects it, the service sets Network nil,
+	// and the tree-integrity rule must therefore fail.
+	sys := &model.System{ID: "sys", DesignAreaDM2: 23200, DesignDensity: 95, PerHeadCoverageDM2: 50}
+	in := Input{System: sys, Network: nil}
+	for _, c := range Check(in) {
+		if c.RuleCode == RTreeIntegrity && c.Passed {
+			t.Fatalf("R-tree-integrity should fail for a confluence network")
+		}
+	}
+}
