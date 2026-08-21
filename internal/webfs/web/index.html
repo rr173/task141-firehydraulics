@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>消防喷淋水力计算与合规引擎</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+<h1>🔥 消防喷淋水力计算与合规引擎</h1>
+<p class="tag">Fire Sprinkler Hydraulic Design &amp; Compliance Engine</p>
+</header>
+<main>
+<section class="panel">
+<h2>项目 Project</h2>
+<div class="row">
+<input id="prjName" placeholder="项目名(建筑/场地)">
+<select id="prjHazard">
+<option value="light">轻危 Light</option>
+<option value="ordinary_1">普危Ⅰ</option>
+<option value="ordinary_2">普危Ⅱ</option>
+<option value="extra_1">严危Ⅰ</option>
+<option value="extra_2" selected>严危Ⅱ</option>
+<option value="storage">仓库</option>
+</select>
+<button id="btnProject">建项目</button>
+</div>
+<div id="projectList" class="list"></div>
+</section>
+
+<section class="panel">
+<h2>系统 System</h2>
+<div class="row">
+<select id="sysKind"><option value="sprinkler">喷淋</option><option value="standpipe">消火栓</option></select>
+<input id="sysName" placeholder="系统名">
+<input id="sysBase" type="number" placeholder="基准点高程mm" value="0">
+<input id="sysDensity" type="number" placeholder="设计密度mm/min" value="95">
+<input id="sysArea" type="number" placeholder="作用面积dm²" value="23200">
+<button id="btnSystem">建系统</button>
+</div>
+<div id="systemList" class="list"></div>
+</section>
+
+<section class="panel">
+<h2>水力计算 Hydraulic</h2>
+<div class="row">
+<input id="sysId" placeholder="系统ID" readonly>
+<button id="btnCalc">计算</button>
+<button id="btnCompliance">NFPA合规</button>
+<button id="btnReport">综合报告</button>
+</div>
+<pre id="result" class="result"></pre>
+</section>
+
+<section class="panel">
+<h2>合规 Compliance</h2>
+<div id="complianceView" class="checks"></div>
+</section>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>

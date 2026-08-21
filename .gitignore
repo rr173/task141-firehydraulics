@@ -1,0 +1,5 @@
+firehydraulics
+*.db
+*.db-shm
+*.db-wal
+vendor/
