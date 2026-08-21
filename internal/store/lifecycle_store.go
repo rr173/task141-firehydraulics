@@ -87,12 +87,18 @@ func (s *Store) ListHydrostaticTests(ctx context.Context, systemID string) ([]mo
 	var out []model.HydrostaticTest
 	for rows.Next() {
 		var t model.HydrostaticTest
-		var leaked, passed int
-		if err := rows.Scan(&t.ID, &t.SystemID, &t.TestPressureMbar, &t.HoldSeconds, &leaked, &passed, &t.TestEpoch); err != nil {
+		// The stored passed column is scanned only to drain the row; the
+		// verdict is derived solely from the recorded pressure and hold time
+		// against the NFPA floors (PassedOK). This ignores a stored passed
+		// flag written by an older, laxer rule and the leaked flag alone, so a
+		// deficient-but-unleaked test still reads back as failed and a
+		// floor-clearing test always reads passed.
+		var leaked, _passed int
+		if err := rows.Scan(&t.ID, &t.SystemID, &t.TestPressureMbar, &t.HoldSeconds, &leaked, &_passed, &t.TestEpoch); err != nil {
 			return nil, err
 		}
 		t.Leaked = leaked != 0
-		t.Passed = passed != 0 || !t.Leaked
+		t.Passed = t.PassedOK()
 		out = append(out, t)
 	}
 	return out, rows.Err()

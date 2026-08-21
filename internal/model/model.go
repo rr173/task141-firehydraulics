@@ -38,36 +38,36 @@ const (
 type NodeType string
 
 const (
-	NodeSource     NodeType = "source"     // 水源点(管网根)
-	NodeBase       NodeType = "base"       // 基准点(系统 riser 底)
-	NodeJunction   NodeType = "junction"   // 三通/弯头/变径
-	NodeSprinkler  NodeType = "sprinkler"  // 喷头
-	NodeStandpipe  NodeType = "standpipe"  // 消火栓接口
-	NodeDrain      NodeType = "drain"      // 排水/试验接口
+	NodeSource    NodeType = "source"    // 水源点(管网根)
+	NodeBase      NodeType = "base"      // 基准点(系统 riser 底)
+	NodeJunction  NodeType = "junction"  // 三通/弯头/变径
+	NodeSprinkler NodeType = "sprinkler" // 喷头
+	NodeStandpipe NodeType = "standpipe" // 消火栓接口
+	NodeDrain     NodeType = "drain"     // 排水/试验接口
 )
 
 // SystemState is the lifecycle state of a fire-protection system.
 type SystemState string
 
 const (
-	StateDraft      SystemState = "draft"
-	StateDesigned   SystemState = "designed"
-	StateSubmitted  SystemState = "submitted"
-	StateApproved   SystemState = "approved"
-	StateInstalled  SystemState = "installed"
+	StateDraft       SystemState = "draft"
+	StateDesigned    SystemState = "designed"
+	StateSubmitted   SystemState = "submitted"
+	StateApproved    SystemState = "approved"
+	StateInstalled   SystemState = "installed"
 	StateHydrostatic SystemState = "hydrostatic"
-	StateAccepted   SystemState = "accepted"
-	StateInService  SystemState = "in_service"
-	StateImpaired   SystemState = "impaired"
-	StateRestored   SystemState = "restored"
+	StateAccepted    SystemState = "accepted"
+	StateInService   SystemState = "in_service"
+	StateImpaired    SystemState = "impaired"
+	StateRestored    SystemState = "restored"
 )
 
 // WaterSupplyKind is the source of system water.
 type WaterSupplyKind string
 
 const (
-	SupplyCity     WaterSupplyKind = "city"      // 市政管网
-	SupplyTank     WaterSupplyKind = "tank"      // 消防水箱
+	SupplyCity      WaterSupplyKind = "city"      // 市政管网
+	SupplyTank      WaterSupplyKind = "tank"      // 消防水箱
 	SupplyReservoir WaterSupplyKind = "reservoir" // 天然水源/水池
 )
 
@@ -75,9 +75,9 @@ const (
 type PumpDriverType string
 
 const (
-	DriverElectric    PumpDriverType = "electric"   // 电动机
-	DriverDiesel      PumpDriverType = "diesel"      // 柴油机
-	DriverDual        PumpDriverType = "dual"        // 双驱动
+	DriverElectric PumpDriverType = "electric" // 电动机
+	DriverDiesel   PumpDriverType = "diesel"   // 柴油机
+	DriverDual     PumpDriverType = "dual"     // 双驱动
 )
 
 // ImpairmentStatus is the state of a system impairment.
@@ -92,8 +92,8 @@ const (
 type CompensatingKind string
 
 const (
-	CompPatrol         CompensatingKind = "patrol"            // 巡逻
-	CompTemporaryPipe  CompensatingKind = "temporary_pipe"    // 临时管
+	CompPatrol          CompensatingKind = "patrol"            // 巡逻
+	CompTemporaryPipe   CompensatingKind = "temporary_pipe"    // 临时管
 	CompManualFireWatch CompensatingKind = "manual_fire_watch" // 人工消防值守
 )
 
@@ -110,174 +110,203 @@ const (
 
 // Project is the top-level fire-protection project (a building / site).
 type Project struct {
-	ID            string     `json:"id"`
-	Name          string     `json:"name"`
-	HazardClass   HazardClass `json:"hazard_class"`
-	DesignDate    int64      `json:"design_date"`     // epoch day
-	CreatedAt     int64      `json:"created_at"`      // epoch seconds
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	HazardClass HazardClass `json:"hazard_class"`
+	DesignDate  int64       `json:"design_date"` // epoch day
+	CreatedAt   int64       `json:"created_at"`  // epoch seconds
 }
 
 // System is a fire-protection system (sprinkler or standpipe).
 type System struct {
-	ID                   string      `json:"id"`
-	ProjectID            string      `json:"project_id"`
-	Kind                 SystemKind  `json:"kind"`
-	Name                 string      `json:"name"`
-	BaseElevationMM      int64       `json:"base_elevation_mm"` // mm above datum
-	DesignAreaDM2        int64       `json:"design_area_dm2"`   // dm² = 0.01 m²
-	DesignDensity         int64       `json:"design_density"`     // mm/min
-	PerHeadCoverageDM2    int64       `json:"per_head_coverage_dm2"` // dm² per sprinkler (NFPA spacing)
-	RemoteNodeID         string      `json:"remote_node_id,omitempty"` // most unfavourable node
-	State                SystemState `json:"state"`
-	WaterSupplyID        string      `json:"water_supply_id,omitempty"`
-	PumpID               string      `json:"pump_id,omitempty"`
-	UpdatedAt           int64       `json:"updated_at"`
+	ID                 string      `json:"id"`
+	ProjectID          string      `json:"project_id"`
+	Kind               SystemKind  `json:"kind"`
+	Name               string      `json:"name"`
+	BaseElevationMM    int64       `json:"base_elevation_mm"`        // mm above datum
+	DesignAreaDM2      int64       `json:"design_area_dm2"`          // dm² = 0.01 m²
+	DesignDensity      int64       `json:"design_density"`           // mm/min
+	PerHeadCoverageDM2 int64       `json:"per_head_coverage_dm2"`    // dm² per sprinkler (NFPA spacing)
+	RemoteNodeID       string      `json:"remote_node_id,omitempty"` // most unfavourable node
+	State              SystemState `json:"state"`
+	WaterSupplyID      string      `json:"water_supply_id,omitempty"`
+	PumpID             string      `json:"pump_id,omitempty"`
+	UpdatedAt          int64       `json:"updated_at"`
 }
 
 // Node is a point in the hydraulic network.
 type Node struct {
-	ID                 string   `json:"id"`
-	SystemID           string   `json:"system_id"`
-	Type               NodeType `json:"type"`
-	Label              string   `json:"label"`
-	ElevationMM        int64    `json:"elevation_mm"`        // mm
-	KFactor            int64    `json:"k_factor,omitempty"` // 公制 K (e.g. 80)
-	DesignMinPressure  int64    `json:"design_min_pressure_mbar,omitempty"` // mbar
-	Seq                int64    `json:"seq"` // topology order
+	ID                string   `json:"id"`
+	SystemID          string   `json:"system_id"`
+	Type              NodeType `json:"type"`
+	Label             string   `json:"label"`
+	ElevationMM       int64    `json:"elevation_mm"`                       // mm
+	KFactor           int64    `json:"k_factor,omitempty"`                 // 公制 K (e.g. 80)
+	DesignMinPressure int64    `json:"design_min_pressure_mbar,omitempty"` // mbar
+	Seq               int64    `json:"seq"`                                // topology order
 }
 
 // PipeSegment connects two nodes; flow goes upstream→downstream-toward-source.
 // DownstreamNode is toward the sprinklers; UpstreamNode toward the source.
 type PipeSegment struct {
-	ID             string `json:"id"`
-	SystemID       string `json:"system_id"`
-	UpstreamNodeID string `json:"upstream_node_id"` // toward source
+	ID               string `json:"id"`
+	SystemID         string `json:"system_id"`
+	UpstreamNodeID   string `json:"upstream_node_id"`   // toward source
 	DownstreamNodeID string `json:"downstream_node_id"` // toward sprinklers
-	NominalDiaMM   int64  `json:"nominal_dia_mm"`   // 公称直径
-	InnerDiaMM     int64  `json:"inner_dia_mm"`     // 实际内径
-	LengthMM       int64  `json:"length_mm"`        // 实际管长
-	CFactor        int64  `json:"c_factor"`          // Hazen-Williams C
-	FittingEquivMM int64  `json:"fitting_equiv_mm"`  // 管件当量长度
-	Seq            int64  `json:"seq"`
+	NominalDiaMM     int64  `json:"nominal_dia_mm"`     // 公称直径
+	InnerDiaMM       int64  `json:"inner_dia_mm"`       // 实际内径
+	LengthMM         int64  `json:"length_mm"`          // 实际管长
+	CFactor          int64  `json:"c_factor"`           // Hazen-Williams C
+	FittingEquivMM   int64  `json:"fitting_equiv_mm"`   // 管件当量长度
+	Seq              int64  `json:"seq"`
 }
 
 // WaterSupply is the source water supply for a system.
 type WaterSupply struct {
-	ID               string           `json:"id"`
-	SystemID         string           `json:"system_id"`
-	Kind             WaterSupplyKind  `json:"kind"`
-	StaticPressure   int64            `json:"static_pressure_mbar"` // 静压 mbar
-	Points           []SupplyPoint    `json:"points,omitempty"`    // 残压曲线
+	ID             string          `json:"id"`
+	SystemID       string          `json:"system_id"`
+	Kind           WaterSupplyKind `json:"kind"`
+	StaticPressure int64           `json:"static_pressure_mbar"` // 静压 mbar
+	Points         []SupplyPoint   `json:"points,omitempty"`     // 残压曲线
 }
 
 // SupplyPoint is one (flow → residual pressure) point on a supply curve.
 type SupplyPoint struct {
-	ID        string `json:"id,omitempty"`
-	SupplyID  string `json:"supply_id,omitempty"`
-	FlowLPM   int64  `json:"flow_lpm"`              // L/min
-	Pressure  int64  `json:"residual_pressure_mbar"` // 残压 mbar
-	Seq       int64  `json:"seq"`
+	ID       string `json:"id,omitempty"`
+	SupplyID string `json:"supply_id,omitempty"`
+	FlowLPM  int64  `json:"flow_lpm"`               // L/min
+	Pressure int64  `json:"residual_pressure_mbar"` // 残压 mbar
+	Seq      int64  `json:"seq"`
 }
 
 // FirePump is the fire pump serving a system (optional).
 type FirePump struct {
-	ID                    string          `json:"id"`
-	SystemID              string          `json:"system_id"`
-	RatedFlowLPM          int64           `json:"rated_flow_lpm"`           // 额定流量
-	RatedHeadMbar         int64           `json:"rated_head_mbar"`          // 额定扬程
-	ChurnPressureMbar     int64           `json:"churn_pressure_mbar"`      // 零流量堵转压力
-	FiftyExtraFlowLPM     int64           `json:"hundred_fifty_flow_lpm"`   // 150% 点流量
-	FiftyExtraHeadMbar    int64           `json:"hundred_fifty_head_mbar"` // 150% 点压力
-	DriverType            PumpDriverType  `json:"driver_type"`
-	RatedRPM              int64           `json:"rated_rpm"`
+	ID                 string         `json:"id"`
+	SystemID           string         `json:"system_id"`
+	RatedFlowLPM       int64          `json:"rated_flow_lpm"`          // 额定流量
+	RatedHeadMbar      int64          `json:"rated_head_mbar"`         // 额定扬程
+	ChurnPressureMbar  int64          `json:"churn_pressure_mbar"`     // 零流量堵转压力
+	FiftyExtraFlowLPM  int64          `json:"hundred_fifty_flow_lpm"`  // 150% 点流量
+	FiftyExtraHeadMbar int64          `json:"hundred_fifty_head_mbar"` // 150% 点压力
+	DriverType         PumpDriverType `json:"driver_type"`
+	RatedRPM           int64          `json:"rated_rpm"`
 }
 
 // HydraulicResult is the computed node table for a system.
 type HydraulicResult struct {
-	ID                  string      `json:"id"`
-	SystemID            string      `json:"system_id"`
-	BaseFlowLPM         int64       `json:"base_flow_lpm"`          // 基准点总流量
-	BaseRequiredPressure int64      `json:"base_required_pressure_mbar"` // 基准点所需压力
-	RemotePressureMbar  int64       `json:"remote_pressure_mbar"`  // 最不利点压力
-	RemoteFlowLPM       int64       `json:"remote_flow_lpm"`       // 最不利点流量
-	Nodes               []NodeResult `json:"nodes"`
-	CalcEpoch           int64       `json:"calc_epoch"`
+	ID                   string       `json:"id"`
+	SystemID             string       `json:"system_id"`
+	BaseFlowLPM          int64        `json:"base_flow_lpm"`               // 基准点总流量
+	BaseRequiredPressure int64        `json:"base_required_pressure_mbar"` // 基准点所需压力
+	RemotePressureMbar   int64        `json:"remote_pressure_mbar"`        // 最不利点压力
+	RemoteFlowLPM        int64        `json:"remote_flow_lpm"`             // 最不利点流量
+	Nodes                []NodeResult `json:"nodes"`
+	CalcEpoch            int64        `json:"calc_epoch"`
 }
 
 // NodeResult is the computed pressure/flow at one node.
 type NodeResult struct {
-	NodeID    string `json:"node_id"`
-	Label     string `json:"label"`
-	PressureMbar int64 `json:"pressure_mbar"`
-	FlowLPM   int64  `json:"flow_lpm,omitempty"` // sprinkler flow at this node
-	ElevationMM int64 `json:"elevation_mm"`
+	NodeID       string `json:"node_id"`
+	Label        string `json:"label"`
+	PressureMbar int64  `json:"pressure_mbar"`
+	FlowLPM      int64  `json:"flow_lpm,omitempty"` // sprinkler flow at this node
+	ElevationMM  int64  `json:"elevation_mm"`
 }
 
 // SupplyComparison is the water-supply adequacy comparison at the base point.
 type SupplyComparison struct {
-	ID                 string `json:"id"`
-	SystemID           string `json:"system_id"`
-	BaseFlowLPM        int64  `json:"base_flow_lpm"`
-	AvailablePressure  int64  `json:"available_pressure_mbar"` // supply at Q (or +pump)
-	RequiredPressure   int64  `json:"required_pressure_mbar"`
-	SurplusMbar        int64  `json:"surplus_mbar"`            // available - required (may be <0)
-	NeedsPump          bool   `json:"needs_pump"`
-	PumpAdded          bool   `json:"pump_added"`
-	CheckedEpoch       int64 `json:"checked_epoch"`
+	ID                string `json:"id"`
+	SystemID          string `json:"system_id"`
+	BaseFlowLPM       int64  `json:"base_flow_lpm"`
+	AvailablePressure int64  `json:"available_pressure_mbar"` // supply at Q (or +pump)
+	RequiredPressure  int64  `json:"required_pressure_mbar"`
+	SurplusMbar       int64  `json:"surplus_mbar"` // available - required (may be <0)
+	NeedsPump         bool   `json:"needs_pump"`
+	PumpAdded         bool   `json:"pump_added"`
+	CheckedEpoch      int64  `json:"checked_epoch"`
 }
 
 // ComplianceCheck is one NFPA rule result.
 type ComplianceCheck struct {
-	ID          string `json:"id"`
-	SystemID    string `json:"system_id"`
-	RuleCode    string `json:"rule_code"`
-	Passed      bool   `json:"passed"`
-	Detail      string `json:"detail,omitempty"`
-	CheckedEpoch int64 `json:"checked_epoch"`
+	ID           string `json:"id"`
+	SystemID     string `json:"system_id"`
+	RuleCode     string `json:"rule_code"`
+	Passed       bool   `json:"passed"`
+	Detail       string `json:"detail,omitempty"`
+	CheckedEpoch int64  `json:"checked_epoch"`
 }
 
 // HydrostaticTest is a pressure test record.
 type HydrostaticTest struct {
-	ID              string `json:"id"`
-	SystemID        string `json:"system_id"`
-	TestPressureMbar int64 `json:"test_pressure_mbar"`
-	HoldSeconds     int64  `json:"hold_seconds"`
-	Leaked          bool   `json:"leaked"`
-	Passed          bool   `json:"passed"`
-	TestEpoch       int64  `json:"test_epoch"`
+	ID               string `json:"id"`
+	SystemID         string `json:"system_id"`
+	TestPressureMbar int64  `json:"test_pressure_mbar"`
+	HoldSeconds      int64  `json:"hold_seconds"`
+	Leaked           bool   `json:"leaked"`
+	Passed           bool   `json:"passed"`
+	TestEpoch        int64  `json:"test_epoch"`
+}
+
+// NFPA wet-system hydrostatic (pressure) test floors. A test is judged PASSING
+// only when it held at least MinHydrostaticPressureMbar for at least
+// MinHydrostaticHoldSeconds with no leakage. These are the authority for the
+// verdict in RecordHydrostaticTest, in the persisted test read-back and in the
+// →accepted acceptance gate; no path may relax them.
+const (
+	MinHydrostaticPressureMbar int64 = 2000 // 2 bar (NFPA 13 wet-system test pressure floor)
+	MinHydrostaticHoldSeconds  int64 = 7200 // 2h (NFPA 13 wet-system hold-time floor)
+)
+
+// HydrostaticPassed reports whether a pressure test meets the NFPA floors: no
+// leak, pressure ≥ MinHydrostaticPressureMbar, hold ≥ MinHydrostaticHoldSeconds.
+// The Leaked/Passed fields alone are NOT authoritative — the recorded
+// pressure and hold time must independently clear the floors, so a row whose
+// caller-authored Passed flag drifted is still judged correctly on read-back.
+func HydrostaticPassed(testPressureMbar, holdSeconds int64, leaked bool) bool {
+	return !leaked &&
+		testPressureMbar >= MinHydrostaticPressureMbar &&
+		holdSeconds >= MinHydrostaticHoldSeconds
+}
+
+// Passed reports whether a HydrostaticTest meets the NFPA floors. It is the
+// entry point for the verdict at the acceptance gate and anywhere a test is
+// consumed; it does not consult the persisted Passed flag, which is derived
+// (and may be stale if the floors were tightened).
+func (t HydrostaticTest) PassedOK() bool {
+	return HydrostaticPassed(t.TestPressureMbar, t.HoldSeconds, t.Leaked)
 }
 
 // AcceptanceRecord is the acceptance (commissioning) record.
 type AcceptanceRecord struct {
-	ID          string   `json:"id"`
-	SystemID    string   `json:"system_id"`
-	Conclusion  string   `json:"conclusion"` // pass / fail
-	Defects     []string `json:"defects"`
-	AcceptedBy  string   `json:"accepted_by"`
-	AcceptedEpoch int64  `json:"accepted_epoch"`
+	ID            string   `json:"id"`
+	SystemID      string   `json:"system_id"`
+	Conclusion    string   `json:"conclusion"` // pass / fail
+	Defects       []string `json:"defects"`
+	AcceptedBy    string   `json:"accepted_by"`
+	AcceptedEpoch int64    `json:"accepted_epoch"`
 }
 
 // InspectionRecord is a periodic inspection/test record.
 type InspectionRecord struct {
-	ID        string `json:"id"`
-	SystemID  string `json:"system_id"`
-	Kind      InspectionKind `json:"kind"`
-	Result    string `json:"result"` // pass / fail / na
-	Detail    string `json:"detail,omitempty"`
-	InspectedEpoch int64 `json:"inspected_epoch"`
+	ID             string         `json:"id"`
+	SystemID       string         `json:"system_id"`
+	Kind           InspectionKind `json:"kind"`
+	Result         string         `json:"result"` // pass / fail / na
+	Detail         string         `json:"detail,omitempty"`
+	InspectedEpoch int64          `json:"inspected_epoch"`
 }
 
 // Impairment is a system-out-of-service event.
 type Impairment struct {
-	ID                 string           `json:"id"`
-	SystemID           string           `json:"system_id"`
-	Scope              string           `json:"scope"`
-	Reason             string           `json:"reason"`
-	StartedEpoch       int64            `json:"started_epoch"`
-	ExpectedRestoreEpoch int64          `json:"expected_restore_epoch"`
-	ActualRestoreEpoch int64           `json:"actual_restore_epoch,omitempty"`
-	Status             ImpairmentStatus `json:"status"`
-	Measures           []CompensatingMeasure `json:"measures,omitempty"`
+	ID                   string                `json:"id"`
+	SystemID             string                `json:"system_id"`
+	Scope                string                `json:"scope"`
+	Reason               string                `json:"reason"`
+	StartedEpoch         int64                 `json:"started_epoch"`
+	ExpectedRestoreEpoch int64                 `json:"expected_restore_epoch"`
+	ActualRestoreEpoch   int64                 `json:"actual_restore_epoch,omitempty"`
+	Status               ImpairmentStatus      `json:"status"`
+	Measures             []CompensatingMeasure `json:"measures,omitempty"`
 }
 
 // CompensatingMeasure is the mitigation during an impairment.
@@ -292,12 +321,12 @@ type CompensatingMeasure struct {
 
 // LifecycleEvent is one recorded state transition (event-stream source of truth).
 type LifecycleEvent struct {
-	ID         string `json:"id"`
-	SystemID   string `json:"system_id"`
+	ID         string      `json:"id"`
+	SystemID   string      `json:"system_id"`
 	FromState  SystemState `json:"from_state"`
 	ToState    SystemState `json:"to_state"`
-	Reason     string `json:"reason"`
-	EventEpoch int64  `json:"event_epoch"`
+	Reason     string      `json:"reason"`
+	EventEpoch int64       `json:"event_epoch"`
 }
 
 // FullReport bundles every computed view for a system, used by the frontend and

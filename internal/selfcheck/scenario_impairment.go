@@ -277,3 +277,129 @@ func getSystem(srv *httptest.Server, id string) (*model.System, error) {
 	}
 	return &sys, nil
 }
+
+// driveToHydrostatic walks a system up to (and including) the hydrostatic
+// state so a hydrostatic scenario can record its own test(s) before the
+// →accepted acceptance gate.
+func driveToHydrostatic(srv *httptest.Server, sid string) error {
+	if err := addAdequateSupply(srv, sid); err != nil {
+		return err
+	}
+	if _, _, err := callCalc(srv, sid); err != nil {
+		return err
+	}
+	if err := mustDo(srv, "POST", "/api/systems/"+sid+"/compliance", nil, nil); err != nil {
+		return err
+	}
+	if _, err := transitionTo(srv, sid, model.StateSubmitted, "submit"); err != nil {
+		return err
+	}
+	if _, err := transitionTo(srv, sid, model.StateApproved, "approve"); err != nil {
+		return err
+	}
+	if _, err := transitionTo(srv, sid, model.StateInstalled, "install"); err != nil {
+		return err
+	}
+	if _, err := transitionTo(srv, sid, model.StateHydrostatic, "ready to test"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// recordHydroTest posts a hydrostatic test and decodes the returned record so
+// the scenario can assert on the authoritative verdict.
+func recordHydroTest(srv *httptest.Server, sid string, pressureMbar, holdSec int64, leaked bool) (*model.HydrostaticTest, error) {
+	var t model.HydrostaticTest
+	if err := mustDo(srv, "POST", "/api/systems/"+sid+"/hydrostatic-test",
+		map[string]any{"test_pressure_mbar": pressureMbar, "hold_seconds": holdSec, "leaked": leaked}, &t); err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+// listHydroTests re-reads the recorded tests for a system (the read-back path).
+func listHydroTests(srv *httptest.Server, sid string) ([]model.HydrostaticTest, error) {
+	var resp struct {
+		Tests []model.HydrostaticTest `json:"tests"`
+	}
+	if err := mustDo(srv, "GET", "/api/systems/"+sid+"/hydrostatic-test", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Tests, nil
+}
+
+// smokeHydrostaticDeficientGate proves a hydrostatic test with sub-floor
+// pressure OR insufficient hold time cannot pass the acceptance gate, even
+// when it does not leak. It covers all three verdict sites: creation (recorded
+// Passed=false), read-back (list re-derives the same verdict), and the
+// hydrostatic→accepted acceptance gate (transition rejected 422). A
+// floor-clearing test then lets the same system proceed, proving the gate is
+// structural, not a blanket block.
+func smokeHydrostaticDeficientGate(srv *httptest.Server, clk *clock.Fake) error {
+	_, sid, _, _, err := buildSimpleTree(srv, model.HazardOrdinary1, 43, 13900, 100)
+	if err != nil {
+		return err
+	}
+	if err := driveToHydrostatic(srv, sid); err != nil {
+		return err
+	}
+
+	// Sub-floor pressure (below the 2000 mbar floor) but legal hold, no leak.
+	// Pre-fix this was recorded as passed and let acceptance proceed.
+	t1, err := recordHydroTest(srv, sid, 1200, 7200, false)
+	if err != nil {
+		return err
+	}
+	if t1.Passed {
+		return fmt.Errorf("sub-floor pressure test recorded as passed: %+v", t1)
+	}
+	// Read-back must agree (verdict re-derived from pressure/hold, not leaked).
+	tests, err := listHydroTests(srv, sid)
+	if err != nil {
+		return err
+	}
+	if len(tests) == 0 {
+		return fmt.Errorf("no hydrostatic tests read back")
+	}
+	if tests[len(tests)-1].Passed {
+		return fmt.Errorf("sub-floor pressure test read back as passed")
+	}
+	// The acceptance gate (hydrostatic→accepted) must reject: no
+	// floor-clearing test yet.
+	if err := expectCode(srv, "POST", "/api/systems/"+sid+"/lifecycle",
+		map[string]any{"to": string(model.StateAccepted), "reason": "accept"}, 422); err != nil {
+		return err
+	}
+
+	// Insufficient hold time (below the 7200s floor) but legal pressure, no leak.
+	t2, err := recordHydroTest(srv, sid, 2000, 3600, false)
+	if err != nil {
+		return err
+	}
+	if t2.Passed {
+		return fmt.Errorf("short-hold test recorded as passed: %+v", t2)
+	}
+	// Still no clearing test → acceptance still rejected.
+	if err := expectCode(srv, "POST", "/api/systems/"+sid+"/lifecycle",
+		map[string]any{"to": string(model.StateAccepted), "reason": "accept"}, 422); err != nil {
+		return err
+	}
+
+	// A genuinely leaking test fails even with floor-clearing pressure/hold.
+	t3, err := recordHydroTest(srv, sid, 34000, 7200, true)
+	if err != nil {
+		return err
+	}
+	if t3.Passed {
+		return fmt.Errorf("leaking test recorded as passed: %+v", t3)
+	}
+
+	// A floor-clearing, non-leaking test finally lets the system through.
+	if _, err := recordHydroTest(srv, sid, 34000, 7200, false); err != nil {
+		return err
+	}
+	if _, err := transitionTo(srv, sid, model.StateAccepted, "accept"); err != nil {
+		return fmt.Errorf("accept with floor-clearing test: %w", err)
+	}
+	return nil
+}

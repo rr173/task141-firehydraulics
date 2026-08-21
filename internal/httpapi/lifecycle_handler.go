@@ -11,7 +11,7 @@ import (
 func (h *handlers) lifecycle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		To     model.SystemState `json:"to"`
-		Reason string             `json:"reason"`
+		Reason string            `json:"reason"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
@@ -59,7 +59,14 @@ func (h *handlers) hydrostaticTest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, t)
 }
 
-// --- Acceptance ---
+func (h *handlers) listHydrostaticTests(w http.ResponseWriter, r *http.Request) {
+	tests, err := h.svc.ListHydrostaticTests(r.Context(), pathID(r))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tests": tests})
+}
 
 func (h *handlers) acceptance(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -82,10 +89,10 @@ func (h *handlers) acceptance(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlers) inspection(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Kind     model.InspectionKind `json:"kind"`
-		Result   string               `json:"result"`
-		Detail   string               `json:"detail"`
-		Epoch    int64                `json:"inspected_epoch"`
+		Kind   model.InspectionKind `json:"kind"`
+		Result string               `json:"result"`
+		Detail string               `json:"detail"`
+		Epoch  int64                `json:"inspected_epoch"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return

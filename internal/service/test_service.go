@@ -23,10 +23,11 @@ func (s *Services) RecordHydrostaticTest(ctx context.Context, systemID string, t
 	if testEpoch == 0 {
 		testEpoch = s.now()
 	}
-	// NFPA wet-system hydrostatic test pressure ≥ 2000 mbar (2 bar) and hold ≥
-	// 7200s (2h). We enforce the hold-time floor only as a design check; the
-	// passed flag is the caller's but we compute it if not provided consistently.
-	passed := !leaked || (testPressureMbar > 0 && holdSeconds > 0)
+	// NFPA wet-system hydrostatic test: pressure ≥ 2000 mbar (2 bar) AND hold
+	// ≥ 7200s (2h) AND no leak. The verdict is authoritative — a sub-floor
+	// pressure or hold time fails the test regardless of a caller-authored
+	// pass, so acceptance can never proceed on a deficient test.
+	passed := model.HydrostaticPassed(testPressureMbar, holdSeconds, leaked)
 	t := &model.HydrostaticTest{
 		ID:               idlib.New("hyd"),
 		SystemID:         systemID,
@@ -56,12 +57,12 @@ func (s *Services) RecordAcceptance(ctx context.Context, systemID, conclusion, a
 		return nil, fmt.Errorf("%w: conclusion must be pass or fail", store.ErrInvariant)
 	}
 	a := &model.AcceptanceRecord{
-		ID:             idlib.New("acc"),
-		SystemID:       systemID,
-		Conclusion:     conclusion,
-		Defects:        defects,
-		AcceptedBy:     acceptedBy,
-		AcceptedEpoch:  s.now(),
+		ID:            idlib.New("acc"),
+		SystemID:      systemID,
+		Conclusion:    conclusion,
+		Defects:       defects,
+		AcceptedBy:    acceptedBy,
+		AcceptedEpoch: s.now(),
 	}
 	if err := s.st.CreateAcceptanceRecord(ctx, nil, a); err != nil {
 		return nil, err

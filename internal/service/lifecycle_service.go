@@ -100,9 +100,14 @@ func (s *Services) checkTransitionPreconditions(ctx context.Context, sys *model.
 	return nil
 }
 
+// anyHydrostaticPassed reports whether any recorded hydrostatic test clears the
+// NFPA pressure and hold-time floors with no leak. It uses the authoritative
+// verdict (PassedOK), not the stored Passed flag or the leaked flag alone, so
+// a deficient test (sub-floor pressure or short hold) cannot let the
+// →accepted gate pass.
 func anyHydrostaticPassed(tests []model.HydrostaticTest) bool {
 	for _, t := range tests {
-		if !t.Leaked {
+		if t.PassedOK() {
 			return true
 		}
 	}

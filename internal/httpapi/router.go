@@ -63,6 +63,7 @@ func NewMux(svc Services, frontend fs.FS) http.Handler {
 	mux.HandleFunc("POST /api/systems/{id}/lifecycle", h.lifecycle)
 	mux.HandleFunc("GET /api/systems/{id}/lifecycle", h.getLifecycle)
 	mux.HandleFunc("POST /api/systems/{id}/hydrostatic-test", h.hydrostaticTest)
+	mux.HandleFunc("GET /api/systems/{id}/hydrostatic-test", h.listHydrostaticTests)
 	mux.HandleFunc("POST /api/systems/{id}/acceptance", h.acceptance)
 	mux.HandleFunc("POST /api/systems/{id}/inspections", h.inspection)
 	mux.HandleFunc("GET /api/systems/{id}/inspections", h.listInspections)

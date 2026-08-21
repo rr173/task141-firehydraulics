@@ -47,6 +47,7 @@ func Run() error {
 		{"velocity-and-supply-deficit", smokeVelocityAndSupplyDeficit},
 		{"pump-augments-supply", smokePumpAugmentsSupply},
 		{"lifecycle-to-in-service", smokeLifecycleToInService},
+		{"hydrostatic-deficient-gate", smokeHydrostaticDeficientGate},
 		{"impairment-requires-compensation", smokeImpairmentRequiresCompensation},
 		{"impairment-restore", smokeImpairmentRestore},
 		{"cross-system-compensation", smokeCrossSystemCompensation},
