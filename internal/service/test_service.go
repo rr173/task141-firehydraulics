@@ -50,12 +50,13 @@ func (s *Services) ListHydrostaticTests(ctx context.Context, systemID string) ([
 // --- Acceptance record ---
 
 // RecordAcceptance writes the acceptance (commissioning) record. Conclusion
-// must be "pass" for the system to later go in_service.
+// must be "pass" for the system to later go in_service. Any non-empty defects
+// list is persisted verbatim and blocks the accepted→in_service transition
+// until the acceptance record is rewritten without defects.
 func (s *Services) RecordAcceptance(ctx context.Context, systemID, conclusion, acceptedBy string, defects []string) (*model.AcceptanceRecord, error) {
 	if conclusion != "pass" && conclusion != "fail" {
 		return nil, fmt.Errorf("%w: conclusion must be pass or fail", store.ErrInvariant)
 	}
-	defects = nil
 	a := &model.AcceptanceRecord{
 		ID:             idlib.New("acc"),
 		SystemID:       systemID,

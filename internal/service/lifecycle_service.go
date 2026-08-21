@@ -62,7 +62,8 @@ func (s *Services) Transition(ctx context.Context, systemID string, to model.Sys
 //   - →designed: requires a hydraulic result;
 //   - →submitted: requires compliance to have been run (any checks exist);
 //   - →accepted: requires a passing hydrostatic test;
-//   - →in_service: requires an acceptance record (pass);
+//   - →in_service: requires an acceptance record that passed AND has no
+//     unrectified defects;
 //   - →restored: requires the impairment to have an actual_restore_epoch;
 //   - →impaired: requires at least one compensating measure.
 func (s *Services) checkTransitionPreconditions(ctx context.Context, sys *model.System, to model.SystemState) error {
@@ -92,6 +93,9 @@ func (s *Services) checkTransitionPreconditions(ctx context.Context, sys *model.
 			}
 			if rec.Conclusion == "fail" {
 				return fmt.Errorf("%w: acceptance record did not pass", store.ErrInvariant)
+			}
+			if len(rec.Defects) > 0 {
+				return fmt.Errorf("%w: acceptance record has %d unresolved defect(s)", store.ErrInvariant, len(rec.Defects))
 			}
 		}
 	case model.StateRestored:

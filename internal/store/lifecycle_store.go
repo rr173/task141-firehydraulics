@@ -107,12 +107,21 @@ func (s *Store) CreateAcceptanceRecord(ctx context.Context, tx *sql.Tx, a *model
 	if tx != nil {
 		q = tx
 	}
-	defects, _ := json.Marshal([]string{})
-	_, err := q.ExecContext(ctx,
+	// Persist the defects verbatim (one row per system, upserted). The list is
+	// the authoritative record of unrectified acceptance defects; the lifecycle
+	// gate reads it back to block in_service until every defect is cleared.
+	defectsJSON, err := json.Marshal(a.Defects)
+	if err != nil {
+		return fmt.Errorf("marshal acceptance defects: %w", err)
+	}
+	if defectsJSON == nil {
+		defectsJSON = []byte("[]")
+	}
+	_, err = q.ExecContext(ctx,
 		`INSERT INTO acceptance_records(id,system_id,conclusion,defects_json,accepted_by,accepted_epoch)
 		 VALUES(?,?,?,?,?,?)
 		 ON CONFLICT(system_id) DO UPDATE SET conclusion=excluded.conclusion,defects_json=excluded.defects_json,accepted_by=excluded.accepted_by,accepted_epoch=excluded.accepted_epoch`,
-		a.ID, a.SystemID, a.Conclusion, string(defects), a.AcceptedBy, a.AcceptedEpoch)
+		a.ID, a.SystemID, a.Conclusion, string(defectsJSON), a.AcceptedBy, a.AcceptedEpoch)
 	if err != nil {
 		return fmt.Errorf("create acceptance record: %w", err)
 	}
