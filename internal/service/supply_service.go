@@ -62,7 +62,13 @@ func (s *Services) CreateWaterSupply(ctx context.Context, systemID string, kind 
 		if err := s.st.SetSystemWaterSupply(ctx, tx, systemID, ws.ID, s.now()); err != nil {
 			return err
 		}
+		// Invalidate the derived rows that depend on the supply curve so the
+		// next read (or restart reconcile) recomputes them from the new curve
+		// instead of serving the old surplus.
 		if err := s.st.DeleteHydraulicResult(ctx, tx, systemID); err != nil {
+			return err
+		}
+		if err := s.st.DeleteSupplyComparison(ctx, tx, systemID); err != nil {
 			return err
 		}
 		return nil
@@ -114,6 +120,14 @@ func (s *Services) CreateFirePump(ctx context.Context, systemID string, ratedFlo
 			return err
 		}
 		if err := s.st.SetSystemPump(ctx, tx, systemID, p.ID, s.now()); err != nil {
+			return err
+		}
+		// Invalidate the derived rows that depend on the pump curve so the
+		// next read (or restart reconcile) recomputes them with the new pump.
+		if err := s.st.DeleteHydraulicResult(ctx, tx, systemID); err != nil {
+			return err
+		}
+		if err := s.st.DeleteSupplyComparison(ctx, tx, systemID); err != nil {
 			return err
 		}
 		return nil

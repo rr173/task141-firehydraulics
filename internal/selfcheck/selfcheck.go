@@ -51,6 +51,7 @@ func Run() error {
 		{"impairment-restore", smokeImpairmentRestore},
 		{"cross-system-compensation", smokeCrossSystemCompensation},
 		{"frontend-page-served", smokeFrontend},
+		{"supply-replacement-rebuilds", smokeSupplyReplacementRebuilds},
 	}
 	for i, c := range cases {
 		dbPath := filepath.Join(dir, fmt.Sprintf("smoke-%02d.db", i))

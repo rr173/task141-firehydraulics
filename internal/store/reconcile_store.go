@@ -65,8 +65,19 @@ func (s *Store) DeleteHydraulicResult(ctx context.Context, tx *sql.Tx, systemID 
 	return nil
 }
 
-// DeleteSupplyComparison removes the stored comparison for a system.
+// DeleteSupplyComparison removes the stored comparison for a system (used when
+// the supply or pump changes and the derived comparison must be invalidated so
+// it is recomputed from the new authoritative inputs rather than served stale).
 func (s *Store) DeleteSupplyComparison(ctx context.Context, tx *sql.Tx, systemID string) error {
+
+	var q DBTX = s.db
+	if tx != nil {
+		q = tx
+	}
+	if _, err := q.ExecContext(ctx,
+		`DELETE FROM supply_comparisons WHERE system_id=?`, systemID); err != nil {
+		return fmt.Errorf("delete supply comparison: %w", err)
+	}
 	return nil
 }
 

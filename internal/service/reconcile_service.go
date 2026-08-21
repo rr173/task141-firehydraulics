@@ -54,9 +54,6 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (int, error) {
 // reconcileSystem rebuilds the network, re-runs the hydraulic calculation,
 // re-runs compliance, and rewrites the derived rows.
 func (r *Reconciler) reconcileSystem(ctx context.Context, sys *model.System) error {
-	if _, err := r.svc.st.GetSupplyComparison(ctx, sys.ID); err == nil {
-		return nil
-	}
 	nodes, err := r.svc.st.ListNodesBySystem(ctx, sys.ID)
 	if err != nil {
 		return err
@@ -110,6 +107,13 @@ func (r *Reconciler) reconcileSystem(ctx context.Context, sys *model.System) err
 	// Persist in one transaction.
 	if err := r.svc.st.InTx(ctx, func(tx *sql.Tx) error {
 		if err := r.svc.st.UpsertHydraulicResult(ctx, tx, res); err != nil {
+			return err
+		}
+		// Drop any stale comparison first, then (re)write the fresh one if a
+		// supply exists. This guarantees a replaced supply curve — whose old
+		// surplus may still be on disk — is overwritten rather than retained,
+		// and a supply that was removed clears the row entirely.
+		if err := r.svc.st.DeleteSupplyComparison(ctx, tx, sys.ID); err != nil {
 			return err
 		}
 		if cmp != nil {
