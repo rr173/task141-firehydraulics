@@ -46,6 +46,7 @@ func Run() error {
 		{"hydraulic-calc-and-compliance", smokeHydraulicCalcAndCompliance},
 		{"velocity-and-supply-deficit", smokeVelocityAndSupplyDeficit},
 		{"pump-augments-supply", smokePumpAugmentsSupply},
+		{"pump-replacement-adopted", smokePumpReplacementAdopted},
 		{"lifecycle-to-in-service", smokeLifecycleToInService},
 		{"impairment-requires-compensation", smokeImpairmentRequiresCompensation},
 		{"impairment-restore", smokeImpairmentRestore},
@@ -68,6 +69,13 @@ func Run() error {
 	// Restart-recovery runs separately because it controls the store lifecycle.
 	if err := smokeRestartRecovery(filepath.Join(dir, "smoke-recover.db"), clk); err != nil {
 		return fmt.Errorf("restart-recovery: %w", err)
+	}
+	// Restart-recovery for the pump-replacement regression: proves the swapped-in
+	// qualified pump is adopted after a crash + ReconcileAll (the original bug
+	// left supply inadequate on restart because the link pointed at the deleted
+	// old pump).
+	if err := smokePumpReplacementAfterRestart(filepath.Join(dir, "smoke-recover-pump.db"), clk); err != nil {
+		return fmt.Errorf("restart-recovery-pump-replace: %w", err)
 	}
 	return nil
 }

@@ -103,19 +103,20 @@ func (s *Services) CreateFirePump(ctx context.Context, systemID string, ratedFlo
 		RatedRPM:           rpm,
 	}
 	if err := s.st.InTx(ctx, func(tx *sql.Tx) error {
-		// Replace existing pump.
-		var oldID string
-		_ = tx.QueryRowContext(ctx, `SELECT id FROM fire_pumps WHERE system_id=?`, systemID).Scan(&oldID)
+		// Replace any existing pump for this system: delete the old pump row by
+		// system_id, then insert the new one.
 		if _, err := tx.ExecContext(ctx, `DELETE FROM fire_pumps WHERE system_id=?`, systemID); err != nil {
 			return fmt.Errorf("delete old pump: %w", err)
 		}
 		if err := s.st.CreateFirePump(ctx, tx, p); err != nil {
 			return err
 		}
-		if oldID == "" {
-			oldID = p.ID
-		}
-		if err := s.st.SetSystemPump(ctx, tx, systemID, oldID, s.now()); err != nil {
+		// Link the system to the NEWLY inserted pump. The pump_id column is how
+		// both Calculate and the restart-reconcile path resolve the active pump
+		// (GetFirePump joins fire_pumps ON systems.pump_id), so it must point at
+		// the replacement row — not the just-deleted old id — or the swapped-in
+		// qualified device is silently dropped and supply stays inadequate.
+		if err := s.st.SetSystemPump(ctx, tx, systemID, p.ID, s.now()); err != nil {
 			return err
 		}
 		return nil
