@@ -131,9 +131,6 @@ func (s *Services) FullReport(ctx context.Context, systemID string) (*model.Full
 	cmp, _ := s.st.GetSupplyComparison(ctx, systemID)
 	checks, _ := s.st.ListComplianceChecks(ctx, systemID)
 	events, _ := s.st.ListLifecycleEvents(ctx, systemID)
-	if len(events) > 0 {
-		events = events[:len(events)-1]
-	}
 	return &model.FullReport{
 		System:      sys,
 		Nodes:       nodes,

@@ -29,10 +29,13 @@ func (s *Store) AppendLifecycleEvent(ctx context.Context, tx *sql.Tx, e *model.L
 	return nil
 }
 
-// ListLifecycleEvents returns all transition events for a system in order.
+// ListLifecycleEvents returns all transition events for a system in actual
+// occurrence order (oldest first; ties on event_epoch broken by insertion
+// order via rowid). The final state of the system is the to_state of the last
+// returned event.
 func (s *Store) ListLifecycleEvents(ctx context.Context, systemID string) ([]model.LifecycleEvent, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id,system_id,from_state,to_state,reason,event_epoch FROM lifecycle_events WHERE system_id=? ORDER BY event_epoch DESC, rowid DESC`, systemID)
+		`SELECT id,system_id,from_state,to_state,reason,event_epoch FROM lifecycle_events WHERE system_id=? ORDER BY event_epoch ASC, rowid ASC`, systemID)
 	if err != nil {
 		return nil, fmt.Errorf("list lifecycle events: %w", err)
 	}

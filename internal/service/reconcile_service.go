@@ -144,7 +144,9 @@ func (r *Reconciler) reconcileSystem(ctx context.Context, sys *model.System) err
 
 // correctStatesFromEvents recomputes the persisted system.state from the last
 // lifecycle event (the event stream is authoritative on restart) and corrects
-// any drift.
+// any drift. ListLifecycleEvents returns events in actual occurrence order
+// (oldest first, ties broken by insertion order), so the final state is the
+// to_state of the last event — not the first.
 func (r *Reconciler) correctStatesFromEvents(ctx context.Context) error {
 	systems, err := r.svc.st.AllSystems(ctx)
 	if err != nil {
@@ -158,7 +160,7 @@ func (r *Reconciler) correctStatesFromEvents(ctx context.Context) error {
 		if len(events) == 0 {
 			continue
 		}
-		last := events[0]
+		last := events[len(events)-1]
 		if sys.State != last.ToState {
 			if err := r.svc.st.SetSystemStateRaw(ctx, nil, sys.ID, last.ToState, r.svc.now()); err != nil {
 				return fmt.Errorf("correct state %s: %w", sys.ID, err)
