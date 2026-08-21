@@ -1,0 +1,10 @@
+# Runtime artifacts / build outputs excluded from delivery source.
+*.db
+*.db-wal
+*.db-shm
+firehydraulics
+/task141-firehydraulics
+node_modules/
+dist/
+vendor/
+.DS_Store
