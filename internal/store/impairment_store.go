@@ -45,6 +45,9 @@ func (s *Store) CreateCompensatingMeasure(ctx context.Context, tx *sql.Tx, m *mo
 }
 
 // RestoreImpairment marks an impairment restored and sets the actual restore time.
+// It does NOT close the compensating measures; pair it with EndCompensatingMeasures
+// inside the same transaction so the restore and the measure closure land at one
+// instant.
 func (s *Store) RestoreImpairment(ctx context.Context, tx *sql.Tx, id string, actualEpoch int64) error {
 
 	var q DBTX = s.db
@@ -60,6 +63,25 @@ func (s *Store) RestoreImpairment(ctx context.Context, tx *sql.Tx, id string, ac
 	n, _ := res.RowsAffected()
 	if n == 0 {
 		return ErrNotFound
+	}
+	return nil
+}
+
+// EndCompensatingMeasures stamps ended_epoch on every still-open measure of an
+// impairment (the moment the impairment was restored). The `ended_epoch=0`
+// guard makes it idempotent: a repeated restore does not rewrite measures that
+// were already closed. Use it together with RestoreImpairment in one InTx so
+// the system restore and the compensation closure are atomic.
+func (s *Store) EndCompensatingMeasures(ctx context.Context, tx *sql.Tx, impairmentID string, endedEpoch int64) error {
+
+	var q DBTX = s.db
+	if tx != nil {
+		q = tx
+	}
+	if _, err := q.ExecContext(ctx,
+		`UPDATE compensating_measures SET ended_epoch=? WHERE impairment_id=? AND ended_epoch=0`,
+		endedEpoch, impairmentID); err != nil {
+		return fmt.Errorf("end compensating measures: %w", err)
 	}
 	return nil
 }
@@ -144,7 +166,6 @@ func (s *Store) listMeasures(ctx context.Context, impairmentID string) ([]model.
 			return nil, err
 		}
 		m.Kind = model.CompensatingKind(kind)
-		m.EndedEpoch = 0
 		out = append(out, m)
 	}
 	return out, rows.Err()

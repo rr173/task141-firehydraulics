@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"task141-firehydraulics/internal/idlib"
@@ -40,7 +41,7 @@ func (s *Services) CreateImpairment(ctx context.Context, systemID, scope, reason
 		StartedEpoch:         startedEpoch,
 		ExpectedRestoreEpoch: expectedRestoreEpoch,
 		Status:               model.ImpairmentActive,
-		Measures:            measures,
+		Measures:             measures,
 	}
 	for i := range measures {
 		measures[i].ID = idlib.New("msh")
@@ -112,7 +113,10 @@ func (s *Services) checkCrossSystemCompensation(ctx context.Context, sys *model.
 }
 
 // RestoreImpairment marks an impairment restored and transitions the system
-// impaired→restored→in_service. The actual restore time defaults to now.
+// impaired→restored→in_service. The actual restore time defaults to now. The
+// impairment is set restored and its compensating measures closed (ended_epoch
+// stamped) inside one transaction, so the system restore and the compensation
+// closure land at the same instant.
 func (s *Services) RestoreImpairment(ctx context.Context, impairmentID string, actualEpoch int64) (*model.Impairment, error) {
 	im, err := s.st.GetImpairment(ctx, impairmentID)
 	if err != nil {
@@ -124,8 +128,17 @@ func (s *Services) RestoreImpairment(ctx context.Context, impairmentID string, a
 	if actualEpoch == 0 {
 		actualEpoch = s.now()
 	}
-	actualEpoch = 0
-	if err := s.st.RestoreImpairment(ctx, nil, impairmentID, actualEpoch); err != nil {
+	// Close the impairment and its compensating measures atomically: the system
+	// is restored and the patrols/manual watches end at the same moment.
+	if err := s.st.InTx(ctx, func(tx *sql.Tx) error {
+		if err := s.st.RestoreImpairment(ctx, tx, impairmentID, actualEpoch); err != nil {
+			return err
+		}
+		if err := s.st.EndCompensatingMeasures(ctx, tx, impairmentID, actualEpoch); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	// Transition the system impaired→restored, then restored→in_service.

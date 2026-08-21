@@ -69,6 +69,11 @@ func Run() error {
 	if err := smokeRestartRecovery(filepath.Join(dir, "smoke-recover.db"), clk); err != nil {
 		return fmt.Errorf("restart-recovery: %w", err)
 	}
+	// Auto-restore at exact expiry runs separately because it controls the store
+	// lifecycle (reopen + ReconcileAll at the moment of expiry).
+	if err := smokeImpairmentAutoRestoreExactExpiry(filepath.Join(dir, "smoke-auto-restore.db"), clk); err != nil {
+		return fmt.Errorf("impairment-auto-restore-exact-expiry: %w", err)
+	}
 	return nil
 }
 

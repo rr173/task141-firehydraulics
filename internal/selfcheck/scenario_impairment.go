@@ -6,6 +6,7 @@ import (
 
 	"task141-firehydraulics/internal/clock"
 	"task141-firehydraulics/internal/model"
+	"task141-firehydraulics/internal/service"
 )
 
 // bringToInService is a shared helper that drives a system fully in-service.
@@ -161,6 +162,16 @@ func smokeImpairmentRestore(srv *httptest.Server, clk *clock.Fake) error {
 	if restored.ActualRestoreEpoch == 0 {
 		return fmt.Errorf("actual restore epoch not set")
 	}
+	// Restoring the impairment must close its compensating measures at the same
+	// instant: every patrol/manual-watch's ended_epoch is stamped.
+	for _, m := range restored.Measures {
+		if m.EndedEpoch == 0 {
+			return fmt.Errorf("compensating measure %s still open after restore", m.ID)
+		}
+		if m.EndedEpoch != restored.ActualRestoreEpoch {
+			return fmt.Errorf("measure ended at %d, restore at %d (not same instant)", m.EndedEpoch, restored.ActualRestoreEpoch)
+		}
+	}
 	sys, err := getSystem(srv, sid)
 	if err != nil {
 		return err
@@ -276,4 +287,101 @@ func getSystem(srv *httptest.Server, id string) (*model.System, error) {
 		return nil, err
 	}
 	return &sys, nil
+}
+
+// smokeImpairmentAutoRestoreExactExpiry drives a system in-service, registers
+// an impairment, advances the fake clock to EXACTLY the expected restore epoch,
+// and reopens the database (the restart path) so ReconcileAll auto-restores
+// past-due impairments. The impairment must auto-restore at the moment of
+// expiry (not only past it), the system go back in_service, and every
+// compensating measure be closed at that same instant.
+func smokeImpairmentAutoRestoreExactExpiry(dbPath string, clk *clock.Fake) error {
+	srv, st, err := restartServer(dbPath, clk)
+	if err != nil {
+		return err
+	}
+	sid, err := bringToInService(srv, model.HazardOrdinary1, "sys3")
+	if err != nil {
+		srv.Close()
+		_ = st.Close()
+		return err
+	}
+	var im model.Impairment
+	if err := mustDo(srv, "POST", "/api/systems/"+sid+"/impairments",
+		map[string]any{"scope": "zone-C", "reason": "valve check",
+			"started_epoch": 0, "expected_restore_epoch": 86400,
+			"measures": []map[string]any{
+				{"kind": "patrol", "owner": "guard-3"},
+				{"kind": "manual_fire_watch", "owner": "watch-3"},
+			}}, &im); err != nil {
+		srv.Close()
+		_ = st.Close()
+		return err
+	}
+	// Simulate a restart: close the server+store, set the clock to EXACTLY the
+	// expected restore epoch (not past it), reopen, and reconcile.
+	srv.Close()
+	if err := st.Close(); err != nil {
+		return err
+	}
+	clk.SetEpoch(im.ExpectedRestoreEpoch)
+
+	srv2, st2, err := restartServer(dbPath, clk)
+	if err != nil {
+		return err
+	}
+	defer srv2.Close()
+	defer st2.Close()
+	svc2 := service.NewWithClock(st2, clk)
+	if _, err := svc2.Reconcile().ReconcileAll(ctx()); err != nil {
+		return fmt.Errorf("reconcile: %w", err)
+	}
+
+	ims, err := listProjectImpairments(srv2, sid)
+	if err != nil {
+		return err
+	}
+	var restored *model.Impairment
+	for i := range ims {
+		if ims[i].ID == im.ID {
+			restored = &ims[i]
+		}
+	}
+	if restored == nil {
+		return fmt.Errorf("impairment %s not found after reconcile", im.ID)
+	}
+	if restored.Status != model.ImpairmentRestored {
+		return fmt.Errorf("impairment not auto-restored at exact expiry: %s", restored.Status)
+	}
+	if restored.ActualRestoreEpoch != im.ExpectedRestoreEpoch {
+		return fmt.Errorf("actual restore epoch %d, want %d (expiry instant)", restored.ActualRestoreEpoch, im.ExpectedRestoreEpoch)
+	}
+	for _, m := range restored.Measures {
+		if m.EndedEpoch != restored.ActualRestoreEpoch {
+			return fmt.Errorf("measure %s ended at %d, want %d", m.ID, m.EndedEpoch, restored.ActualRestoreEpoch)
+		}
+	}
+	sys, err := getSystem(srv2, sid)
+	if err != nil {
+		return err
+	}
+	if sys.State != model.StateInService {
+		return fmt.Errorf("system not back in service after auto-restore: %s", sys.State)
+	}
+	return nil
+}
+
+// listProjectImpairments lists impairments for the project that owns systemID.
+func listProjectImpairments(srv *httptest.Server, systemID string) ([]model.Impairment, error) {
+	sys, err := getSystem(srv, systemID)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Impairments []model.Impairment `json:"impairments"`
+	}
+	if err := mustDo(srv, "GET", "/api/projects/"+sys.ProjectID+"/impairments", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Impairments, nil
 }

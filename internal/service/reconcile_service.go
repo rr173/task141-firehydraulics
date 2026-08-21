@@ -169,10 +169,12 @@ func (r *Reconciler) correctStatesFromEvents(ctx context.Context) error {
 }
 
 // autoRestorePastDue restores impairments whose expected_restore_epoch has
-// passed; it does NOT call the full Transition path (which requires the
-// in_service→impaired→restored graph) because the system may already have been
-// advanced by the event-stream correction. It sets the impairment status and
-// the actual_restore_epoch.
+// reached now (inclusive, so an impairment whose window expires this instant
+// is restored too); it does NOT call the full Transition path (which requires
+// the in_service→impaired→restored graph) because the system may already have
+// been advanced by the event-stream correction. It sets the impairment status,
+// the actual_restore_epoch, and closes the compensating measures in one
+// transaction.
 func (r *Reconciler) autoRestorePastDue(ctx context.Context) error {
 	active, err := r.svc.st.ListActiveImpairments(ctx)
 	if err != nil {
@@ -180,9 +182,17 @@ func (r *Reconciler) autoRestorePastDue(ctx context.Context) error {
 	}
 	now := r.svc.now()
 	for _, im := range active {
-		if im.ExpectedRestoreEpoch < now {
-			// Restore the impairment record.
-			if err := r.svc.st.RestoreImpairment(ctx, nil, im.ID, now); err != nil {
+		if im.ExpectedRestoreEpoch <= now {
+			// Restore the impairment record and close its measures atomically.
+			if err := r.svc.st.InTx(ctx, func(tx *sql.Tx) error {
+				if err := r.svc.st.RestoreImpairment(ctx, tx, im.ID, now); err != nil {
+					return err
+				}
+				if err := r.svc.st.EndCompensatingMeasures(ctx, tx, im.ID, now); err != nil {
+					return err
+				}
+				return nil
+			}); err != nil {
 				continue
 			}
 			// Append a restore event if the system is still impaired.
