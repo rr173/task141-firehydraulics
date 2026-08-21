@@ -90,7 +90,12 @@ func Available(s *model.WaterSupply, p *model.FirePump, q, required int64) (avai
 	}
 	// Supply alone is insufficient (or q is 0 and required>0): a pump boosts.
 	if p != nil {
-		available = supplyOnly
+		// The pump's boost at flow q is added on top of the supply's residual
+		// pressure so the available pressure reflects the pump in series with the
+		// supply. This is the single place the boost is applied; the live-calc,
+		// restart-reconcile and curve paths all route through here so the boost is
+		// counted consistently.
+		available = supplyOnly + pumpBoostAt(p, q)
 		needsPump = supplyOnly < required
 		pumpAdded = true
 		return

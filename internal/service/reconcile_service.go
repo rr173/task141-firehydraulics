@@ -99,7 +99,8 @@ func (r *Reconciler) reconcileSystem(ctx context.Context, sys *model.System) err
 	}
 	var cmp *model.SupplyComparison
 	if sup != nil {
-		pump = nil
+		// The pump (if configured) is passed to the comparison so its boost is
+		// counted on restart recovery, exactly as in the live-calc path.
 		cmp = watersupply.Compare(sup, pump, res.BaseFlowLPM, res.BaseRequiredPressure)
 		cmp.ID = idlibSafe()
 		cmp.SystemID = sys.ID

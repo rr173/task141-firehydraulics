@@ -107,7 +107,9 @@ func (s *Services) Calculate(ctx context.Context, systemID string) (*model.Hydra
 	}
 	var cmp *model.SupplyComparison
 	if sup != nil {
-		pump = nil
+		// The pump (if configured) is passed to the comparison so its boost is
+		// counted. Removing the pump here would silently drop the boost and
+		// wrongly report a supply deficit even when a pump is configured.
 		cmp = watersupply.Compare(sup, pump, res.BaseFlowLPM, res.BaseRequiredPressure)
 		cmp.ID = idlib.New("cmp")
 		cmp.SystemID = systemID
