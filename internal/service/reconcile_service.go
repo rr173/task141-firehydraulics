@@ -55,7 +55,9 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (int, error) {
 // re-runs compliance, and rewrites the derived rows.
 func (r *Reconciler) reconcileSystem(ctx context.Context, sys *model.System) error {
 	mu := r.svc.systemLock(sys.ID)
-	_ = mu
+	mu.Lock()
+	defer mu.Unlock()
+
 	nodes, err := r.svc.st.ListNodesBySystem(ctx, sys.ID)
 	if err != nil {
 		return err

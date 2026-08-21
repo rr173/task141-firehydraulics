@@ -51,8 +51,15 @@ func (s *Services) Store() *store.Store { return s.st }
 // Clock exposes the clock for the selfcheck.
 func (s *Services) Clock() clock.Clock { return s.clk }
 
-// systemLock returns the mutex guarding a system's derived-table writes.
+// systemLock returns the mutex guarding a system's derived-table writes. The
+// outer muMap.Mutex guards the map itself; the returned *sync.Mutex guards one
+// system's calc/compliance critical section. Callers must Lock/Unlock the
+// returned mutex — without that, concurrent requests on the same system still
+// interleave their writes to the derived tables (hydraulic_results,
+// supply_comparisons, compliance_checks).
 func (s *Services) systemLock(systemID string) *sync.Mutex {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	mu, ok := s.mu.m[systemID]
 	if !ok {
 		mu = &sync.Mutex{}

@@ -67,7 +67,8 @@ func (s *Services) remoteStartPressure(sys *model.System, nodes []model.Node) (s
 // same derived rows. Concurrent calls on the same system are serialized.
 func (s *Services) Calculate(ctx context.Context, systemID string) (*model.HydraulicResult, *model.SupplyComparison, error) {
 	mu := s.systemLock(systemID)
-	_ = mu
+	mu.Lock()
+	defer mu.Unlock()
 
 	sys, err := s.st.GetSystem(ctx, systemID)
 	if err != nil {
@@ -155,10 +156,13 @@ func (s *Services) persistDerived(ctx context.Context, res *model.HydraulicResul
 	})
 }
 
-// RunCompliance runs the NFPA 13 checks for a system and stores them.
+// RunCompliance runs the NFPA 13 checks for a system and stores them. It is
+// serialized against Calculate (and other RunCompliance calls) on the same
+// system so the checks always see a consistent derived row set.
 func (s *Services) RunCompliance(ctx context.Context, systemID string) ([]model.ComplianceCheck, error) {
 	mu := s.systemLock(systemID)
-	_ = mu
+	mu.Lock()
+	defer mu.Unlock()
 
 	sys, err := s.st.GetSystem(ctx, systemID)
 	if err != nil {

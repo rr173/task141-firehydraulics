@@ -119,6 +119,16 @@ func checkVelocity(in Input) model.ComplianceCheck {
 		c.Detail = "no network/pipes"
 		return c
 	}
+	if in.Hydraulic == nil {
+		// The network is buildable but no hydraulic result has been computed
+		// yet (e.g. compliance run before calculate, or a concurrent run that
+		// read the result before calculate committed). Without per-node flows
+		// there is nothing to evaluate; defer the verdict rather than panic on
+		// a nil node table.
+		c.Passed = false
+		c.Detail = "no hydraulic result for velocity check"
+		return c
+	}
 	// Recompute flows from the hydraulic result's node table to evaluate each
 	// pipe's carried flow. The pipe feeding node N carries N's subtree total.
 	// We approximate the velocity using the base flow split proportionally;
